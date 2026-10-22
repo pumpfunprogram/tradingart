@@ -45,7 +45,7 @@ function connect() {
   ws.on('open', () => {
     backoff = 1000;
     try { ws.send(JSON.stringify({ method: 'subscribeNewToken' })); ws.send(JSON.stringify({ method: 'subscribeMigration' })); } catch (_) {}
-    subbed.clear(); subscribeTrades([...new Set([...collector.trackedMints(), ...mints.keys()])].slice(-collector.MAX_TOKENS));
+    subbed.clear(); subscribeTrades([...new Set([...collector.trackedMints(), ...mints.keys()])]);
     logger.info('new-token stream connected');
   });
   ws.on('message', onMessage);

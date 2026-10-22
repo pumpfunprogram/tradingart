@@ -478,7 +478,7 @@ function TokenSheet({ mint, seed, solUsd, me, onSaved, goRobot, onClose }: { min
       <ProChart mint={mint} bars={bars} trades={trades} solUsd={solUsd} />
       <div className="row" style={{ margin: '4px 0 8px' }}>
         <a className="btn btn-ghost sm" href={`https://dexscreener.com/solana/${mint}`} target="_blank" rel="noreferrer">Open on DexScreener</a>
-        <span className="hint" style={{ fontWeight: 600 }}>{trades.length ? `${trades.length.toLocaleString()} trades loaded · oldest ${new Date(Math.min(...trades.map(t => t.t))).toLocaleTimeString()}` : 'Loading the full trade tape from the chain…'}</span>
+        <span className="hint" style={{ fontWeight: 600 }}>{trades.length ? `${trades.length.toLocaleString()} trades · oldest ${new Date(Math.min(...trades.map(t => t.t))).toLocaleTimeString()} · ${ch?.trades?.length ? 'from recorded tape' : 'from chain'}` : 'Loading trade tape…'}</span>
       </div>
       <div className="hist" aria-label="Trade history">
         <div className="histhead"><b>Trades by everyone</b><span className="mono">{trades.length ? `${recent.filter((x) => x.side === 'buy').length} buys · ${recent.filter((x) => x.side === 'sell').length} sells (last ${recent.length})` : 'waiting for the first trade'}</span></div>
