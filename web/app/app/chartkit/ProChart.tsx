@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, CandlestickSeries, HistogramSeries, LineSeries, ColorType, LineStyle } from 'lightweight-charts';
 import { runIndicator, indLabel, IND_DEFS, type IndKind, type Candle } from './indicators';
 import { loadPrefs, savePrefs, addInd, removeInd, TF, type Prefs } from './prefs';
+import { loadDrawings, saveDrawings, makeDrawing, project, type Drawing, type DrawKind } from './drawings';
 
 type Bar = number[];
 type Tr = { t: number; side: 'buy' | 'sell'; sol: number; mcapSol: number; who?: string; sig?: string };
@@ -33,12 +34,16 @@ export default function ProChart({ mint, bars = [], trades, solUsd, height = 520
   const seen = useRef<Set<string>>(new Set());
   const follow = useRef(true);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_SAFE);
+  const [showInd, setShowInd] = useState(false);
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [tool, setTool] = useState<DrawKind | null>(null);
+  const draft = useRef<{ time: number; price: number }[] | null>(null);
+  const overlay = useRef<HTMLCanvasElement>(null);
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [hover, setHover] = useState<Candle | null>(null);
   const [live, setLive] = useState<Candle | null>(null);
   const [vol, setVol] = useState(0);
-  const [showInd, setShowInd] = useState(false);
   const k = solUsd && solUsd > 0 ? solUsd : 1;
   const tfRef = useRef(prefs.tf);
   tfRef.current = prefs.tf;
@@ -237,6 +242,85 @@ export default function ProChart({ mint, bars = [], trades, solUsd, height = 520
     setPrefs(next); savePrefs(next);
   }, []);
 
+
+  useEffect(() => {
+    setDrawings(loadDrawings(mint));
+  }, [mint]);
+
+  const paintDrawings = useCallback(() => {
+    const cv = overlay.current;
+    const ch = chartRef.current;
+    const cs = csRef.current;
+    if (!cv || !ch || !cs || !box.current) return;
+    const w = box.current.clientWidth;
+    const h = box.current.clientHeight;
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    const pr = {
+      xOf: (t: number) => { try { return ch.timeScale().timeToCoordinate(t); } catch { return null; } },
+      yOf: (p: number) => { try { return cs.priceToCoordinate(p); } catch { return null; } },
+    };
+    const all = draft.current && draft.current.length ? [...drawings, makeDrawing(tool || 'trend', draft.current, '#fbbf24')] : drawings;
+    ctx.lineWidth = 1.5;
+    ctx.font = '11px sans-serif';
+    for (const d of all) {
+      const sh = project(d, pr);
+      ctx.strokeStyle = d.color;
+      ctx.fillStyle = d.color;
+      ctx.setLineDash(d.dash === 'dashed' ? [4, 3] : d.dash === 'dotted' ? [1, 2] : []);
+      for (const sg of sh.segs) {
+        ctx.beginPath();
+        ctx.moveTo(sg.x1, sg.y1);
+        ctx.lineTo(sg.x2, sg.y2);
+        ctx.stroke();
+      }
+      for (const lb of sh.labels) {
+        ctx.fillText(lb.text, lb.x, lb.y);
+      }
+    }
+    ctx.setLineDash([]);
+  }, [drawings, tool]);
+
+  useEffect(() => { paintDrawings(); }, [paintDrawings, ready, drawings]);
+
+  const onChartClick = useCallback((e: React.MouseEvent) => {
+    if (!tool || !chartRef.current || !csRef.current || !box.current) return;
+    const rect = box.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    let time: number | null = null;
+    let price: number | null = null;
+    try { time = chartRef.current.timeScale().coordinateToTime(x); } catch { /* ignore */ }
+    try { price = csRef.current.coordinateToPrice(y); } catch { /* ignore */ }
+    if (time == null || price == null) return;
+    const pt = { time: Math.floor(Number(time)), price };
+    if (tool === 'hline') {
+      const d = makeDrawing('hline', [pt]);
+      const next = [...drawings, d];
+      setDrawings(next); saveDrawings(mint, next);
+      setTool(null);
+      return;
+    }
+    if (!draft.current) {
+      draft.current = [pt];
+    } else {
+      draft.current.push(pt);
+      const d = makeDrawing(tool, draft.current);
+      const next = [...drawings, d];
+      setDrawings(next); saveDrawings(mint, next);
+      draft.current = null;
+      setTool(null);
+    }
+    paintDrawings();
+  }, [tool, drawings, mint, paintDrawings]);
+
+  const clearDrawings = useCallback(() => {
+    setDrawings([]); saveDrawings(mint, []);
+  }, [mint]);
+
   const shown = hover || live;
   const up = shown ? shown.close >= shown.open : true;
   const change = shown && shown.open ? ((shown.close - shown.open) / shown.open) * 100 : 0;
@@ -261,6 +345,10 @@ export default function ProChart({ mint, bars = [], trades, solUsd, height = 520
             </button>
           ))}
           <button className={showInd ? 'on' : ''} onClick={() => setShowInd((v) => !v)} title="Indicators">Ind</button>
+          <button className={tool === 'trend' ? 'on' : ''} onClick={() => setTool(tool === 'trend' ? null : 'trend')} title="Trend line">Trend</button>
+          <button className={tool === 'hline' ? 'on' : ''} onClick={() => setTool(tool === 'hline' ? null : 'hline')} title="Horizontal line">HLine</button>
+          <button className={tool === 'fib' ? 'on' : ''} onClick={() => setTool(tool === 'fib' ? null : 'fib')} title="Fibonacci">Fib</button>
+          {drawings.length > 0 && <button onClick={clearDrawings} title="Clear drawings">Clear</button>}
         </div>
       </div>
       {showInd && (
@@ -275,7 +363,10 @@ export default function ProChart({ mint, bars = [], trades, solUsd, height = 520
           })}
         </div>
       )}
-      <div ref={box} style={{ height }} />
+      <div style={{ position: 'relative', height }}>
+        <div ref={box} style={{ height: '100%' }} onClick={onChartClick} />
+        <canvas ref={overlay} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
+      </div>
       {err && <div className="hint warn" style={{ padding: '0 10px 8px' }}>{err}</div>}
       {!trades.length && !bars.length && !err && (
         <div className="hint" style={{ padding: '0 10px 8px' }}>Waiting for the first trade. The candle will move as each fill lands.</div>
