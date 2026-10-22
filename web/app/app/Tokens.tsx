@@ -355,7 +355,7 @@ function TokenSheet({ mint, seed, solUsd, me, onSaved, goRobot, onClose }: { min
       let cursor: string | null = null;
       let pages = 0;
       const acc: Tr[] = [];
-      while (!stop && pages < 40) {
+      while (!stop && pages < 80) {
         const url = `/api/history?mint=${mint}${cursor ? `&before=${cursor}` : '&full=1'}`;
         let r: { trades: { sig: string; t: number; side: 'buy' | 'sell'; sol: number; mcapSol: number; who: string }[]; next: string | null };
         try { r = await api(url); } catch { break; }
@@ -368,7 +368,7 @@ function TokenSheet({ mint, seed, solUsd, me, onSaved, goRobot, onClose }: { min
         pages++;
         const oldest = batch.length ? Math.min(...batch.map((x) => x.t)) : 0;
         if (!r.next || (oldest && oldest < cutoff)) break;
-        await new Promise((res) => setTimeout(res, 400)); // stay under the rate limit
+        await new Promise((res) => setTimeout(res, 150)); // stay under the rate limit
       }
     })();
     return () => { stop = true; };
@@ -409,7 +409,7 @@ function TokenSheet({ mint, seed, solUsd, me, onSaved, goRobot, onClose }: { min
     const srv: Tr[] = (ch?.trades || []).map((x: any[]) => ({ t: Number(x[0]), side: x[1] === 's' ? 'sell' : 'buy', sol: Number(x[2]) || 0, mcapSol: Number(x[3]) || 0, who: x[4] || undefined, sig: x[5] || undefined }));
     const loc: Tr[] = getLocalTrades(mint).map((x) => ({ t: x.t, side: x.side, sol: x.sol, mcapSol: x.mcapSol, who: x.who, sig: x.sig }));
     const seen = new Set<string>(); const out: Tr[] = [];
-    for (const x of [...loc, ...srv, ...older].sort((a, b) => b.t - a.t)) { const k = x.sig ? x.sig : `${Math.round(x.t / 1000)}:${x.sol}:${x.side}`; if (seen.has(k)) continue; seen.add(k); out.push(x); if (out.length >= 8000) break; } // keep enough history to chart several hours back
+    for (const x of [...loc, ...srv, ...older].sort((a, b) => b.t - a.t)) { const k = x.sig ? x.sig : `${Math.round(x.t / 1000)}:${x.sol}:${x.side}`; if (seen.has(k)) continue; seen.add(k); out.push(x); if (out.length >= 20000) break; } // keep enough history to chart several hours back
     return out;
   }, [mint, ch, n, older]); // eslint-disable-line react-hooks/exhaustive-deps
   const recent = trades.slice(0, 120); const bs = recent.filter((x) => x.side === 'buy').reduce((a, x) => a + x.sol, 0), ss = recent.filter((x) => x.side === 'sell').reduce((a, x) => a + x.sol, 0);
@@ -478,7 +478,7 @@ function TokenSheet({ mint, seed, solUsd, me, onSaved, goRobot, onClose }: { min
       <ProChart mint={mint} bars={bars} trades={trades} solUsd={solUsd} />
       <div className="row" style={{ margin: '4px 0 8px' }}>
         <a className="btn btn-ghost sm" href={`https://dexscreener.com/solana/${mint}`} target="_blank" rel="noreferrer">Open on DexScreener</a>
-        <span className="hint">{trades.length ? `Candles built from ${trades.length} on-chain trades. Oldest loaded: ${new Date(Math.min(...trades.map(t => t.t))).toLocaleString()}. Scroll left for earlier candles.` : 'Loading trade history from the chain…'}</span>
+        <span className="hint" style={{ fontWeight: 600 }}>{trades.length ? `${trades.length.toLocaleString()} trades loaded · oldest ${new Date(Math.min(...trades.map(t => t.t))).toLocaleTimeString()}` : 'Loading the full trade tape from the chain…'}</span>
       </div>
       <div className="hist" aria-label="Trade history">
         <div className="histhead"><b>Trades by everyone</b><span className="mono">{trades.length ? `${recent.filter((x) => x.side === 'buy').length} buys · ${recent.filter((x) => x.side === 'sell').length} sells (last ${recent.length})` : 'waiting for the first trade'}</span></div>

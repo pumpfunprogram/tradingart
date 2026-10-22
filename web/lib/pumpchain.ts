@@ -42,7 +42,7 @@ async function call(body: unknown) {
 
 /** The `limit` newest trades before `before` (a signature), newest first, plus the cursor for the next page. */
 export async function fetchTrades(mint: string, opts: { before?: string; limit?: number } = {}): Promise<{ trades: ChainTrade[]; next: string | null; scanned: number }> {
-  const curve = curveOf(mint), limit = Math.min(60, Math.max(5, opts.limit || 40));
+  const curve = curveOf(mint), limit = Math.min(200, Math.max(5, opts.limit || 100));
   const s = await call({ jsonrpc: '2.0', id: 1, method: 'getSignaturesForAddress', params: [curve, { limit, ...(opts.before ? { before: opts.before } : {}), commitment: 'confirmed' }] });
   if (s.error) throw new Error(s.error.message || 'rpc error');
   const sigs: { signature: string; err: any }[] = (s.result || []).filter((x: any) => !x.err);

@@ -11,7 +11,7 @@ const cache = new Map<string, { at: number; v: any }>();
 
 /** Older trades of a coin, straight from the chain. `full=1` walks back toward the first trade. */
 export async function GET(req: NextRequest) {
-  if (rateLimited(`hist:${ipOf(req)}`, 40, 60_000)) return fail('slow down', 429);
+  if (rateLimited(`hist:${ipOf(req)}`, 120, 60_000)) return fail('slow down', 429);
   const mint = (req.nextUrl.searchParams.get('mint') || '').trim();
   const before = (req.nextUrl.searchParams.get('before') || '').trim();
   const full = req.nextUrl.searchParams.get('full') === '1';
@@ -20,15 +20,15 @@ export async function GET(req: NextRequest) {
   const key = `${mint}:${before}:${full ? 'f' : 'p'}`, hit = cache.get(key); if (hit && Date.now() - hit.at < 12_000) return json(hit.v);
   try {
     if (!full) {
-      const r = await fetchTrades(mint, { before: before || undefined, limit: 60 });
+      const r = await fetchTrades(mint, { before: before || undefined, limit: 100 });
       cache.set(key, { at: Date.now(), v: r }); if (cache.size > 200) cache.delete(cache.keys().next().value as string);
       return json(r);
     }
     const all: any[] = [];
     let cursor: string | null = before || null;
     let next: string | null = null;
-    for (let i = 0; i < 30; i++) {
-      const r = await fetchTrades(mint, { before: cursor || undefined, limit: 60 });
+    for (let i = 0; i < 50; i++) {
+      const r = await fetchTrades(mint, { before: cursor || undefined, limit: 100 });
       all.push(...r.trades);
       next = r.next;
       if (!next) break;
