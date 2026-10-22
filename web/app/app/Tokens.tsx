@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import TvChart from './TvChart';
+import ProChart from './chartkit/ProChart';
 import * as charting from '@/lib/charting';
 import { useLiveTokens, getTape, LIST_SIZE, curveProgress, getLocalBars, getLocalTrades, recordTrade, STREAM, type Tok, type FeedStatus } from '@/lib/liveTokens';
 import type { TokenView } from '@/lib/dex';
@@ -475,7 +475,7 @@ function TokenSheet({ mint, seed, solUsd, me, onSaved, goRobot, onClose }: { min
           <div className="cell"><span>Change 1h</span><b className={tv.change.h1 >= 0 ? 'up' : 'dn'}>{tv.change.h1.toFixed(1)}%</b></div>
         </div>
       ) : null}
-      <TvChart mint={mint} bars={bars} trades={trades} solUsd={solUsd} />
+      <ProChart mint={mint} bars={bars} trades={trades} solUsd={solUsd} />
       <div className="row" style={{ margin: '4px 0 8px' }}>
         <a className="btn btn-ghost sm" href={`https://dexscreener.com/solana/${mint}`} target="_blank" rel="noreferrer">Open on DexScreener</a>
         <span className="hint">{trades.length ? `Candles built from ${trades.length} on-chain trades. Oldest loaded: ${new Date(Math.min(...trades.map(t => t.t))).toLocaleString()}. Scroll left for earlier candles.` : 'Loading trade history from the chain…'}</span>
