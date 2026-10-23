@@ -6,6 +6,7 @@ import { PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { useSign } from '@/components/useSign';
 import { api, short, Sheet, type Me } from './shared';
 import TokensTab from './Tokens';
+import TradesTab from './Trades';
 import RobotTab from './Robot';
 import LeadersTab from './Leaders';
 
@@ -17,7 +18,7 @@ export default function Dashboard() {
   const { connection } = useConnection();
   const { sendTransaction } = useWallet();
   const sign = useSign();
-  const [tab, setTab] = useState<'tokens' | 'leaders' | 'robot'>('tokens');
+  const [tab, setTab] = useState<'tokens' | 'trades' | 'leaders' | 'robot'>('tokens');
   const [me, setMe] = useState<Me | null>(null);
   const [auth, setAuth] = useState<'checking' | 'out' | 'in'>('checking');
   const [busy, setBusy] = useState<string | null>(null);
@@ -117,6 +118,7 @@ export default function Dashboard() {
           <a className="brand" href="/"><span className="mark" />ART</a>
           <nav className="navtabs" aria-label="Sections">
             <button className={tab === 'tokens' ? 'on' : ''} onClick={() => setTab('tokens')}>Tokens</button>
+            <button className={tab === 'trades' ? 'on' : ''} onClick={() => setTab('trades')}>Trades</button>
             <button className={tab === 'leaders' ? 'on' : ''} onClick={() => setTab('leaders')}>Leaders</button>
             <button className={tab === 'robot' ? 'on' : ''} onClick={() => setTab('robot')}>Robot</button>
           </nav>
@@ -145,6 +147,7 @@ export default function Dashboard() {
         )}
 
         {tab === 'tokens' && <TokensTab me={me} onSaved={refresh} goRobot={() => setTab('robot')} />}
+        {tab === 'trades' && <TradesTab onOpen={(m) => { setTab('tokens'); }} />}
         {tab === 'leaders' && <LeadersTab signedIn={auth === 'in'} me={me} refresh={refresh} say={say} goRobot={() => setTab('robot')} />}
 
         {tab === 'robot' && (
@@ -231,7 +234,7 @@ export default function Dashboard() {
             const age = (Date.now() - Date.parse(last.created_at)) / 1000;
             const ver = String(me.worker?.version || '0.0').split('.').map(Number);
             if (!me.worker?.online) return <p className="hint warn">Your last withdrawal is waiting because the robot service is offline. Nothing is lost: it will go through when the service is back.</p>;
-            if (ver[0] < 4 || (ver[0] === 4 && ver[1] < 2)) return <p className="hint warn">The robot service is running an old version ({me.worker.version}). Redeploy it on Railway so withdrawals are processed.</p>;
+            if (ver[0] < 4 || (ver[0] === 4 && ver[1] < 2)) return <p className="hint warn">The robot service is running an old version ({me.worker.version}). Redeploy the worker so withdrawals are processed.</p>;
             if (age > 90) return <p className="hint warn">Still processing after {Math.round(age)} seconds. The network can be slow; the robot keeps retrying the same transfer and never sends it twice.</p>;
             return <p className="hint">Processing your withdrawal. This usually takes under a minute.</p>;
           })()}

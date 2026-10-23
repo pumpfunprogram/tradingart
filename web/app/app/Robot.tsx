@@ -47,16 +47,16 @@ function readiness(me: Me, active: Plan | undefined): { checks: Check[]; ready: 
   const cap = me.consent?.limits.maxPositionSol ?? null;
   const tradeSol = wantSol != null && usable != null ? Math.min(wantSol, cap ?? Infinity, usable) : null;
   const checks: Check[] = [
-    { ok: me.workerUnknown ? null : !!w?.online, label: 'Robot service is running', fix: 'Owner: the Railway worker is not reporting in. Open its logs and redeploy.' },
+    { ok: me.workerUnknown ? null : !!w?.online, label: 'Robot service is running', fix: '' },
     { ok: c?.feed ? c.feed.ok : null, label: 'Live price feed connected', fix: 'The robot cannot see new trades yet. It reconnects by itself; if this stays red, check the worker logs.' },
     { ok: c?.tradeApi ? c.tradeApi.ok : null, label: 'Trade builder reachable', fix: 'The robot cannot build swaps right now, so it cannot buy. Check the worker logs.' },
-    { ok: c?.rpc ? c.rpc.ok : null, label: 'Solana network reachable', fix: 'The free RPC nodes are failing. Add another endpoint in RPC_URLS on Railway.' },
+    { ok: c?.rpc ? c.rpc.ok : null, label: 'Solana network reachable', fix: '' },
     { ok: !!me.consent, label: 'Safety limits signed', fix: 'Sign your limits on this tab.' },
     { ok: !!me.vault, label: 'Vault created', fix: 'Create your vault first.' },
     { ok: bal == null ? null : bal >= minV, label: `Vault holds at least ${minV} SOL${bal != null ? ` (now ${bal.toFixed(4)})` : ''}`, fix: `Deposit more. The robot needs at least ${minV} SOL for a real trade.` },
     { ok: tradeSol == null ? null : tradeSol >= 0.01, label: tradeSol != null ? `Trade size works (about ${tradeSol.toFixed(3)} SOL per trade)` : 'Trade size works', fix: 'Each trade must be at least 0.01 SOL after the fee reserve. Raise the vault balance, the trade size, or your signed max position.' },
   ];
-  if (s.live) { checks.splice(1, 0, { ok: me.liveEnabled && !!w?.liveEnabled, label: 'Live trading switched on (site and server)', fix: 'Owner: set LIVE_ENABLED=true on Vercel and LIVE_TRADING_ENABLED=true on Railway, then redeploy both.' }); }
+  if (s.live) { checks.splice(1, 0, { ok: me.liveEnabled && !!w?.liveEnabled, label: 'Live trading switched on (site and server)', fix: '' }); }
   return { checks, ready: checks.every((x) => x.ok !== false) };
 }
 
@@ -173,7 +173,7 @@ export default function RobotTab({ me, refresh, run, busy, say, sign, openSheet 
         {me.vault && (
           <div className="card liveproof" aria-label="Live proof">
             <h3>Live proof</h3>
-            <p className="hint">Anyone can check these on the public Solana explorer, without trusting this app. Paper trades never appear here.</p>
+            
             <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
               <a className="btn btn-gold sm" href={`https://solscan.io/account/${me.vault.address}`} target="_blank" rel="noreferrer">Open my vault on Solscan</a>
               <button className="btn btn-ghost sm" disabled={!!busy} onClick={revealKey}>{busy === 'key' ? 'Opening…' : 'Show vault private key'}</button>
@@ -203,11 +203,11 @@ export default function RobotTab({ me, refresh, run, busy, say, sign, openSheet 
         {/* service status: says plainly why trades or withdrawals may be waiting */}
         {!me.workerUnknown && (!me.worker || !me.worker.online) && (
           <div className="rbar warnbar" role="status"><div className="rtxt"><b>Robot service is not reporting in</b>
-            <span>{me.worker ? `Last seen ${Math.round(me.worker.ageSec / 60)} min ago.` : 'It has not reported in yet.'} Trades and withdrawals wait until it runs. Owner: check the Railway worker is deployed, running, and has the Supabase variables; also run the art_worker SQL.</span></div></div>
+            <span>{me.worker ? `Last seen ${Math.round(me.worker.ageSec / 60)} min ago.` : 'It has not reported in yet.'} Trades and withdrawals wait until it runs. </span></div></div>
         )}
         {me.worker?.online && s.live && !me.worker.liveEnabled && (
           <div className="rbar warnbar" role="status"><div className="rtxt"><b>Live trading is off on the server</b>
-            <span>You chose Live, but the robot service is running in paper-only mode, so no real trades are placed. Owner: set LIVE_TRADING_ENABLED=true on Railway and redeploy.</span></div></div>
+            <span>You chose Live, but the robot service is running in paper-only mode, so no real trades are placed. </span></div></div>
         )}
         {!me.liveEnabled && (
           <div className="rbar warnbar" role="status"><div className="rtxt"><b>Live trading is not enabled on the website</b>
@@ -294,7 +294,7 @@ export default function RobotTab({ me, refresh, run, busy, say, sign, openSheet 
                 <label className="check"><input type="checkbox" aria-label="Chart agent" checked={!!ag?.enabled} onChange={(e) => editAgent({ enabled: e.target.checked })} /><b>Chart agent</b> — watch the live candles and enter on a pattern, even while I am away</label>
                 {ag?.enabled && (
                   <>
-                    <p className="hint">The agent reads our own live trade candles of young coins, and enters only when the pattern shows inside your market-cap range. Size, take profit, stop loss and your safety limits still apply. It replaces the ordinary coin scan for this plan.</p>
+                    
                     <div className="fgrid">
                       <div><span className="lbl">Pattern</span>
                         <select className="field" aria-label="Pattern" value={ag.pattern} onChange={(e) => editAgent({ pattern: e.target.value as Agent['pattern'] })}>
@@ -389,7 +389,7 @@ export default function RobotTab({ me, refresh, run, busy, say, sign, openSheet 
 
         <div className="panel">
           <div className="panel-head"><h2>Leaderboard profile</h2>{s.public_profile && <span className="tag">public</span>}</div>
-          <p className="hint">Everyone is listed by default. Others see your handle, profit, trade results and active plan so they can copy it, never your wallet, balance or vault. You can hide yourself any time.</p>
+          
           <div className="row2">
             <div><span className="lbl">Handle</span><input className="field" aria-label="Leaderboard handle" maxLength={20} placeholder="e.g. coach_mishael" value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} /></div>
             <button className={`btn ${s.public_profile ? 'btn-ghost' : 'btn-gold'} sm`} aria-label={s.public_profile ? 'Hide me from the leaderboard' : 'Show me on the leaderboard'} disabled={!!busy}
