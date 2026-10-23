@@ -27,24 +27,17 @@ function view(t: Tok, solUsd: number | null) {
  * server. A picture that fails is retried a few times with growing pauses, because IPFS gateways are slow, not gone.
  */
 const thumb = (u: string | null, w = 48) => (u && /^https:\/\//.test(u) ? `/api/img?w=${w}&u=${encodeURIComponent(u)}` : null);
-const RETRY = [3000, 9000, 25000, 60000, 150000];
 function Avatar({ t, big, huge }: { t: { mint?: string; thumb?: boolean; image: string | null; symbol: string | null; name: string | null }; big?: boolean; huge?: boolean }) {
-  const [attempt, setAttempt] = useState(0); // how many times the picture failed so far
-  const [failed, setFailed] = useState(false); // currently showing initials while we wait to retry
-  useEffect(() => { setAttempt(0); setFailed(false); }, [t.image, t.thumb]);
-  useEffect(() => {
-    if (!failed || attempt > RETRY.length) return;
-    const id = setTimeout(() => setFailed(false), RETRY[attempt - 1] ?? 150000);
-    return () => clearTimeout(id);
-  }, [failed, attempt]);
-  const own = t.mint && t.thumb ? `/api/thumb?mint=${t.mint}${attempt ? `&r=${attempt}` : ''}` : null;
+  const [stage, setStage] = useState(0);
+  useEffect(() => { setStage(0); }, [t.image, t.thumb, t.mint]);
+  const own = t.mint && t.thumb ? `/api/thumb?mint=${t.mint}` : null;
   const link = thumb(t.image, huge ? 96 : big ? 64 : 48);
-  const src = own || (link ? `${link}${attempt ? `&r=${attempt}` : ''}` : null);
+  const src = stage === 0 && own ? own : (stage <= 1 && link ? link : null);
   const px = huge ? 72 : big ? 48 : 36;
   return (
     <div className={`avatar ${huge ? 'huge' : big ? 'big' : ''}`} aria-hidden>
       <span>{(t.symbol || t.name || '?').slice(0, 2).toUpperCase()}</span>
-      {src && !failed && attempt <= RETRY.length && <img key={src} src={src} alt="" width={px} height={px} loading="eager" decoding="async" fetchPriority="high" referrerPolicy="no-referrer" onError={() => { setAttempt((n) => n + 1); setFailed(true); }} />}
+      {src && <img key={src} src={src} alt="" width={px} height={px} loading="eager" decoding="async" referrerPolicy="no-referrer" onError={() => setStage((n) => n + 1)} />}
     </div>
   );
 }
