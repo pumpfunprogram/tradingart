@@ -139,14 +139,39 @@ class Book {
     await this.rollDay();
     this.entering = true;
     try {
-      const mkt = await this.d.market.getTokenMarket(mint);
-      if (!mkt) return { ok: false, why: 'no market data' };
+      const mkt = await this.d.market.getTokenMarket(mint).catch(() => null);
+      const open = this.acct.plan && !this.acct.plan.minAgeSec && !this.acct.plan.minLiqUsd && !this.acct.plan.minVol1hUsd && !this.acct.plan.minBuys1h && !this.acct.plan.requireRising;
+      if (!mkt && !open) return { ok: false, why: 'no market data' };
 
       const bal = await this.currentBalanceSol();
       const sol = await this.sizeSol(opts.sizeSol);
       logger.info(`[${this.acct.tag}] vault=${bal.toFixed(4)} SOL size=${sol} SOL`);
-      if (sol < 0.008) {
+      if (sol < 0.008 && !open) {
         return { ok: false, why: `vault ${bal.toFixed(4)} SOL too small for a ${sol || 0} SOL buy plus fees. Deposit at least 0.04 SOL.` };
+      }
+      if (!mkt || sol < 0.008) {
+        const paperSol = sol >= 0.008 ? sol : 0.01;
+        const pos = {
+          mint, openedAt: Date.now(), dryRun: true, status: 'open',
+          costLamports: String(Math.round(paperSol * 1e9)), tokenRaw: '1000000', decimals: 6,
+          sizeSol: paperSol, sizeUsd: this.acct.plan.sizeUsd,
+          entryPriceNative: 0.00001, fillSource: 'paper', buySig: null, reason,
+          mode: this.acct.plan.riskProfile || 'easy',
+          takeProfitPct: opts.tp > 0 ? opts.tp : (this.acct.plan.takeProfitPct || 15),
+          stopLossPct: opts.sl > 0 ? opts.sl : (this.acct.plan.stopLossPct || 10),
+          maxHoldMin: opts.holdMin > 0 ? opts.holdMin : (this.acct.plan.maxHoldMin || 10),
+          lastPnl: null, lastPrice: null, priceMisses: 0, stuckRounds: 0,
+        };
+        this.open.set(mint, pos);
+        this.daily.tradesToday = (this.daily.tradesToday || 0) + 1;
+        this.persistPositions(); this.persistDaily();
+        this.d.db.insertTrade({
+          user_id: this.acct.userId, paper: true, mode: pos.mode, mint,
+          side: 'buy', sol: paperSol, size_sol: paperSol, realized_sol: 0,
+          created_at: new Date().toISOString(), exit_reason: 'open',
+        }).catch(() => {});
+        logger.info(`[${this.acct.tag}] PAPER ENTER ${short(mint)} ${paperSol} SOL (${reason})`);
+        return { ok: true, pos };
       }
 
       logger.info(`[${this.acct.tag}] FORCE ENTER ${short(mint)} ${sol} SOL (${reason}) [LIVE]`);
