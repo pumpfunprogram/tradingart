@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * after every refresh.
  */
 const COLS = 'mint,name,symbol,uri,created,first_seen,mcap_sol,v_sol,migrated,migrated_at,stats,image,description,has_thumb,updated_at';
-const DAY = 24 * 3600e3;
+const DAY = 3 * 24 * 3600e3;
 const STRETCH = 0.5; // past half way up the bonding curve
 const V_STRETCH = 30 + 85 * STRETCH;
 
@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
   if (rateLimited(`board:${ipOf(req)}`, 60, 60_000)) return fail('slow down', 429);
   const sb = db(); const since = new Date(Date.now() - DAY).toISOString();
   const [fresh, stretch, mig, hot, top] = await Promise.all([
-    sb.from('art_charts').select(COLS).eq('migrated', false).eq('created', true).gte('first_seen', since).order('first_seen', { ascending: false }).limit(60),
-    sb.from('art_charts').select(COLS).eq('migrated', false).eq('created', true).gte('v_sol', V_STRETCH).gte('updated_at', since).order('v_sol', { ascending: false }).limit(30),
-    sb.from('art_charts').select(COLS).eq('migrated', true).gte('updated_at', since).order('migrated_at', { ascending: false, nullsFirst: false }).limit(30),
+    sb.from('art_charts').select(COLS).eq('migrated', false).eq('created', true).gte('first_seen', since).order('first_seen', { ascending: false }).limit(80),
+    sb.from('art_charts').select(COLS).eq('migrated', false).eq('created', true).gte('v_sol', V_STRETCH).gte('updated_at', since).order('v_sol', { ascending: false }).limit(40),
+    sb.from('art_charts').select(COLS).eq('migrated', true).gte('updated_at', since).order('migrated_at', { ascending: false, nullsFirst: false }).limit(40),
     sb.from('art_charts').select(COLS).eq('migrated', false).gte('updated_at', new Date(Date.now() - 15 * 60e3).toISOString()).order('updated_at', { ascending: false }).limit(200),
     sb.from('art_charts').select('v_sol').eq('migrated', false).eq('created', true).gte('updated_at', since).order('v_sol', { ascending: false }).limit(1),
   ]);

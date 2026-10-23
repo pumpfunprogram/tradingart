@@ -9,7 +9,7 @@ const BASE = 5; // seconds per stored bar
 const TFS = [5, 15, 60, 300];
 
 /** Add one trade to a bar list (mutates). Out-of-order trades only touch the bar they belong to. */
-function addTrade(bars, tr, base = BASE, max = 720) {
+function addTrade(bars, tr, base = BASE, max = 8640) {
   const p = Number(tr.p), v = Number(tr.v) || 0;
   if (!(p > 0) || !Number.isFinite(p)) return bars;
   const b = Math.floor(Number(tr.t) / base) * base;

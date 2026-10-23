@@ -11,9 +11,9 @@ const logger = require('../utils/logger');
 const meta = require('./meta');
 
 const SUPPLY = 1e9;
-const MAX_TOKENS = 320;
-const MAX_BARS = 720; // one hour of 5 s bars
-const SAVE_BARS = 300; // what we store for the website (25 minutes)
+const MAX_TOKENS = 2000;
+const MAX_BARS = 8640; // 12 hours of 5 s bars
+const SAVE_BARS = 3600; // 5 hours of 5 s bars for the website
 const FRESH_MS = 60 * 1000;
 const tokens = new Map(); // mint -> entry
 const pinned = new Set();
@@ -50,7 +50,7 @@ function onMessage(m) {
   e.lastAt = Date.now(); e.trades += 1; e.dirty = true;
   const tr = { t: e.lastAt / 1000, p: mcap, v: Number(m.solAmount) || 0, side: tx === 'create' ? 'buy' : tx };
   addTrade(e.bars, tr, BASE, MAX_BARS);
-  if (tx !== 'create') { e.tape.push([e.lastAt, tx === 'sell' ? 's' : 'b', +(Number(m.solAmount) || 0).toFixed(4), +mcap.toFixed(3), typeof m.traderPublicKey === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m.traderPublicKey) ? m.traderPublicKey : '', typeof m.signature === 'string' ? m.signature.slice(0, 10) : '']); if (e.tape.length > 80) e.tape.shift(); }
+  if (tx !== 'create') { e.tape.push([e.lastAt, tx === 'sell' ? 's' : 'b', +(Number(m.solAmount) || 0).toFixed(4), +mcap.toFixed(3), typeof m.traderPublicKey === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m.traderPublicKey) ? m.traderPublicKey : '', typeof m.signature === 'string' ? m.signature.slice(0, 10) : '']); if (e.tape.length > 5000) e.tape.shift(); }
   addTrade(e.m1, tr, 60, 360); // 6 hours of 1-minute candles
   addTrade(e.m5, tr, 300, 864); // 3 days of 5-minute candles, for the zoomed-out views
   if (tokens.size > MAX_TOKENS + 20) evict();
@@ -127,7 +127,7 @@ async function flush(db, limit = 40) {
   if (!rows.length) return 0;
   rows.forEach((e) => { e.dirty = false; });
   try {
-    await db.saveCharts(rows.map((e) => ({ mint: e.mint, name: e.name, symbol: e.symbol, uri: e.uri, created: e.created, dev: e.dev || null, first_seen: new Date(e.firstSeen).toISOString(), mcap_sol: e.mcapSol, v_sol: e.vSol, migrated: e.migrated, migrated_at: e.migratedAt ? new Date(e.migratedAt).toISOString() : null, stats: statsOf(e), bars: e.bars.slice(-SAVE_BARS), trades: e.tape.slice(-60), bars_1m: e.bars.length > 12 ? e.m1 : [], bars_5m: e.bars.length > 12 ? e.m5 : [], updated_at: new Date().toISOString() })));
+    await db.saveCharts(rows.map((e) => ({ mint: e.mint, name: e.name, symbol: e.symbol, uri: e.uri, created: e.created, dev: e.dev || null, first_seen: new Date(e.firstSeen).toISOString(), mcap_sol: e.mcapSol, v_sol: e.vSol, migrated: e.migrated, migrated_at: e.migratedAt ? new Date(e.migratedAt).toISOString() : null, stats: statsOf(e), bars: e.bars.slice(-SAVE_BARS), trades: e.tape.slice(-2000), bars_1m: e.bars.length > 12 ? e.m1 : [], bars_5m: e.bars.length > 12 ? e.m5 : [], updated_at: new Date().toISOString() })));
   } catch (err) { rows.forEach((e) => { e.dirty = true; }); logger.warn(`chart save failed (run the art_charts SQL in supabase_art.sql): ${err.message}`); return 0; }
   return rows.length;
 }

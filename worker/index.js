@@ -9,6 +9,21 @@ const telegram = require('./src/telegram/bot');
 console.log(`=== ART worker v${config.VERSION} ===`);
 console.log(config.LIVE_TRADING_ENABLED ? 'LIVE trading ENABLED: users who chose live (and signed consent) trade real funds from their vaults' : 'LIVE trading DISABLED: every user is paper-trading');
 
+const missing = ['VAULT_SEAL_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY'].filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error('MISSING ENV: ' + missing.join(', '));
+  console.error('Set these on the Render service, then redeploy. The worker cannot start without them.');
+  process.exit(1);
+}
+console.log('env ok: seal, supabase url, supabase key present');
+
+const http = require('http');
+const healthPort = Number(process.env.PORT) || 10000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'content-type': 'application/json' });
+  res.end(JSON.stringify({ ok: true, v: config.VERSION, live: !!config.LIVE_TRADING_ENABLED, t: Date.now() }));
+}).listen(healthPort, () => console.log('health on :' + healthPort));
+
 async function main() {
   if (!config.VAULT_SEAL_SECRET) throw new Error('VAULT_SEAL_SECRET is required (npm run gen-seal-key)');
   const db = createDb(connect());

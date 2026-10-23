@@ -24,7 +24,7 @@ test('a coin picture is found through a slow gateway, shrunk, and handed to the 
     const v = meta._done.get('M1');
     assert.strictEqual(v.description, 'hello'); assert.match(v.image, /^https:\/\/ipfs\.io\/ipfs\/IMG/);
     const webp = Buffer.from(v.thumb, 'base64'); const info = await sharp(webp).metadata();
-    assert.strictEqual(info.format, 'webp'); assert.strictEqual(info.width, 192); assert.ok(webp.length < 20000);
+    assert.strictEqual(info.format, 'webp'); assert.strictEqual(info.width, 64); assert.ok(webp.length < 8000);
   } finally { global.fetch = real; meta._reset(); }
 });
 

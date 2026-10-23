@@ -5,18 +5,24 @@ const { rpc, broadcast, signatureOf } = require('../solana/rpc');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function buildTx(wallet, body) {
+  const payload = {
+    publicKey: wallet.publicKey.toBase58(),
+    ...body,
+    pool: body.pool || 'pump',
+    amount: typeof body.amount === 'number' ? Number(body.amount.toFixed(6)) : body.amount,
+    slippage: Number(body.slippage),
+    priorityFee: Number(body.priorityFee),
+  };
+  console.log('[swap] pumpportal request:', JSON.stringify({ ...payload, publicKey: payload.publicKey.slice(0, 8) + '…' }));
   const res = await fetch(config.PUMPPORTAL_TRADE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      publicKey: wallet.publicKey.toBase58(),
-      ...body,
-      pool: body.pool || 'pump',
-    }),
+    body: JSON.stringify(payload),
     signal: AbortSignal.timeout(12000),
   });
   if (res.status !== 200) {
-    const text = (await res.text()).slice(0, 250);
+    const text = (await res.text()).slice(0, 300);
+    console.error('[swap] pumpportal error', res.status, text);
     throw new Error(`pumpportal ${res.status}: ${text}`);
   }
   return VersionedTransaction.deserialize(new Uint8Array(await res.arrayBuffer()));
@@ -131,7 +137,7 @@ const solAmount = (sol) => Number(Number(sol).toFixed(6));
 function buyParams(attempt = 1) {
   return {
     slippage: Math.min(config.BUY_SLIPPAGE_PCT + config.BUY_SLIPPAGE_STEP_PCT * (attempt - 1), config.BUY_SLIPPAGE_MAX_PCT),
-    priorityFee: Number((config.BUY_PRIORITY_FEE_SOL * Math.pow(1.6, attempt - 1)).toFixed(6)),
+    priorityFee: Number((config.BUY_PRIORITY_FEE_SOL * Math.pow(1.4, attempt - 1)).toFixed(6)),
   };
 }
 
@@ -154,7 +160,7 @@ async function buy(wallet, mint, sol, attempt = 1) {
 function sellParams(attempt = 1) {
   return {
     slippage: Math.min(config.SELL_SLIPPAGE_PCT + config.SELL_SLIPPAGE_STEP_PCT * (attempt - 1), config.SELL_SLIPPAGE_MAX_PCT),
-    priorityFee: Number((config.SELL_PRIORITY_FEE_SOL * Math.pow(1.5, attempt - 1)).toFixed(6)),
+    priorityFee: Number((config.SELL_PRIORITY_FEE_SOL * Math.pow(1.3, attempt - 1)).toFixed(6)),
   };
 }
 

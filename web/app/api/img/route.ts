@@ -17,13 +17,13 @@ const MAX_BYTES = 6 * 1024 * 1024;
 export async function GET(req: NextRequest) {
   if (rateLimited(`img:${ipOf(req)}`, 400, 60_000)) return fail('slow down', 429);
   const raw = req.nextUrl.searchParams.get('u') || '';
-  const w = Math.min(320, Math.max(24, Number(req.nextUrl.searchParams.get('w')) || 64));
+  const w = Math.min(96, Math.max(24, Number(req.nextUrl.searchParams.get('w')) || 48));
   if (!candidates(raw).length) return fail('host not allowed', 403);
   try {
     const got = await fetchFirst(raw, { accept: 'image/*', maxBytes: MAX_BYTES });
     if (!got) return fail('image unavailable', 404);
     const buf = got.buf;
-    const out = await sharp(buf, { limitInputPixels: 40e6, animated: false }).resize(w, w, { fit: 'cover' }).webp({ quality: 55, effort: 3 }).toBuffer();
+    const out = await sharp(buf, { limitInputPixels: 16e6, animated: false }).resize(w, w, { fit: 'cover' }).webp({ quality: 40, effort: 1 }).toBuffer();
     return new Response(new Uint8Array(out), { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=604800, s-maxage=604800, immutable', 'X-Content-Type-Options': 'nosniff' } });
   } catch {
     return fail('image unavailable', 404);

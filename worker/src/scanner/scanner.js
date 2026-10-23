@@ -53,20 +53,21 @@ async function feedCandidates() {
 /** Score one market snapshot against ONE plan. -Infinity = does not qualify. */
 function scoreChart(mkt, plan) {
   if (!mkt || !(mkt.priceNative > 0)) return -Infinity;
+  const open = !plan.minAgeSec && !plan.minLiqUsd && !plan.minVol1hUsd && !plan.minBuys1h && !plan.requireRising;
   const ageSec = mkt.ageSec != null ? mkt.ageSec : (mkt.ageDays || 0) * 86400;
-  if (!(mkt.pairCreatedAt > 0 || ageSec > 0)) return -Infinity; // unknown age can't satisfy an age window
+  if (!open && !(mkt.pairCreatedAt > 0 || ageSec > 0)) return -Infinity;
   if (ageSec < plan.minAgeSec) return -Infinity;
   if (plan.maxAgeSec != null && ageSec > plan.maxAgeSec) return -Infinity;
   const liq = mkt.liquidityUsd || 0, vol1h = mkt.volume1h || 0, vol6h = mkt.volume6h || 0;
   const ch5 = mkt.priceChange5m || 0, ch1h = mkt.priceChange1h || 0, ch6h = mkt.priceChange6h || 0, ch24h = mkt.priceChange24h || 0;
   const buys1h = mkt.buys1h || 0, sells1h = mkt.sells1h || 0;
   if (plan.requireRising && !(ch1h > 0 || ch6h > 2)) return -Infinity;
-  if (ch5 < -12 || ch24h < -40) return -Infinity;
+  if (!open && (ch5 < -12 || ch24h < -40)) return -Infinity;
   if (liq < plan.minLiqUsd) return -Infinity;
   if (vol1h < plan.minVol1hUsd && vol6h < plan.minVol1hUsd * 3) return -Infinity;
   if (buys1h < plan.minBuys1h) return -Infinity;
   const buyPressure = sells1h > 0 ? buys1h / sells1h : buys1h > 0 ? 2 : 0;
-  if (buyPressure < 0.7) return -Infinity;
+  if (!open && buyPressure < 0.7) return -Infinity;
   let score = 0;
   score += Math.min(ch5, 25) * 1.5; score += Math.min(ch1h, 40) * 2; score += Math.min(ch6h, 60);
   score += Math.log10(Math.max(liq, 1)) * 10; score += Math.log10(Math.max(vol1h, 1)) * 6;
@@ -97,6 +98,15 @@ async function pickOne(plan, key = 'default', stats = {}) {
   }
   stats.matched = scored.length;
   scored.sort((a, b) => b.score - a.score);
+  const open = !plan.minAgeSec && !plan.minLiqUsd && !plan.minVol1hUsd && !plan.minBuys1h && !plan.requireRising;
+  if (!scored.length && open && candidates.length) {
+    const mint = candidates.find((m) => !seen.has(m) && !config.IGNORE_MINTS.includes(m));
+    if (mint) {
+      seen.set(mint, Date.now());
+      logger.info(`scanner[${plan.name}] easy pick ${mint.slice(0, 8)}… (no market data, entering anyway)`);
+      return { mint, mkt: { priceNative: 1, liquidityUsd: 0, ageSec: 1 }, score: 1 };
+    }
+  }
   if (!scored.length) { logger.info(`scanner[${plan.name}]: ${candidates.length} candidates, none passed (age ${fmtAge(plan.minAgeSec)}–${plan.maxAgeSec == null ? 'any' : fmtAge(plan.maxAgeSec)}${plan.requireRising ? ', rising' : ''})`); return null; }
   const top = scored.slice(0, 5);
   const pick = top[Math.floor(Math.random() * top.length)];

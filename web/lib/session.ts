@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { env } from './env';
 
 export const COOKIE = 'art_session';
-const TTL_SEC = 12 * 60 * 60;
+const TTL_SEC = 30 * 24 * 60 * 60;
 const key = () => new TextEncoder().encode(env.sessionSecret);
 
 export type Session = { userId: string; wallet: string };

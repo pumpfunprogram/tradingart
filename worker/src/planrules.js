@@ -18,6 +18,7 @@ const AGENT_OFF = { enabled: false, pattern: 'double_bottom', tfSec: 15, mcapMin
 /** Default plan: chase coins that are rising right now among migrated, final-stretch and trending coins, and take profit fast. */
 const RIDER = { name: 'Rider', sizeUsd: 7, minAgeSec: 0, maxAgeSec: null, takeProfitPct: 20, stopLossPct: 12, maxHoldMin: 6, scanEverySec: 10, maxTradesDay: 40, minLiqUsd: 0, minVol1hUsd: 0, minBuys1h: 0, requireRising: false,
   agent: { ...AGENT_OFF, enabled: true, pattern: 'momentum', tfSec: 15, confirmPct: 3, maxRisePct: 60, source: 'any' } };
+const EASY = { name: 'Easy', sizeUsd: 5, minAgeSec: 0, maxAgeSec: null, takeProfitPct: 15, stopLossPct: 10, maxHoldMin: 10, scanEverySec: 10, maxTradesDay: 50, minLiqUsd: 0, minVol1hUsd: 0, minBuys1h: 0, requireRising: false };
 const HUNTER = { name: 'Bottom Hunter', sizeUsd: 7, minAgeSec: 120, maxAgeSec: 6 * 3600, takeProfitPct: 40, stopLossPct: 20, maxHoldMin: 20, scanEverySec: 10, maxTradesDay: 20, minLiqUsd: 0, minVol1hUsd: 0, minBuys1h: 0, requireRising: false,
   agent: { ...AGENT_OFF, enabled: true, mcapMinUsd: 8000, mcapMaxUsd: 100000 } };
 const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
@@ -73,6 +74,6 @@ function sanitizePlan(p = {}, base = STEADY) {
   };
 }
 
-function defaultPlans() { return [{ id: 'rider', ...RIDER }, { id: 'steady', ...STEADY }, { id: 'sniper', ...SNIPER }]; }
+function defaultPlans() { return [{ id: 'easy', ...EASY }, { id: 'rider', ...RIDER }, { id: 'steady', ...STEADY }, { id: 'sniper', ...SNIPER }]; }
 
-module.exports = { sanitizePlan, sanitizeAgent, defaultPlans, MAX_PLANS, STEADY, SNIPER, RIDER, HUNTER, SOURCES, AGENT_OFF, PATTERNS, AGENT_TFS };
+module.exports = { sanitizePlan, sanitizeAgent, defaultPlans, MAX_PLANS, STEADY, SNIPER, RIDER, HUNTER, EASY, SOURCES, AGENT_OFF, PATTERNS, AGENT_TFS };

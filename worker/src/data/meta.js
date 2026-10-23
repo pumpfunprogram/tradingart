@@ -1,7 +1,7 @@
 /**
  * Token pictures and descriptions, resolved by the worker (a normal server with open internet) instead of by every
  * visitor's phone. A launch event only carries a link to a small JSON file on IPFS. We read it through several public
- * gateways at once, retry with growing pauses until it works, then shrink the picture to a ~192px WebP thumbnail that the
+ * gateways at once, retry with growing pauses until it works, then shrink the picture to a 64px WebP thumbnail that the
  * website serves from our own database. Gateways being slow or rate-limited only delays a picture; it does not lose it.
  */
 const logger = require('../utils/logger');
@@ -65,7 +65,7 @@ async function resolveOne(mint, job) {
   let thumb = null;
   if (meta.image && sharp) {
     const img = await race(meta.image, MAX_IMG, looksImage); if (!img) return false;
-    try { thumb = (await sharp(img, { limitInputPixels: 40e6, animated: false }).resize(192, 192, { fit: "cover" }).webp({ quality: 60, effort: 3 }).toBuffer()).toString('base64'); }
+    try { thumb = (await sharp(img, { limitInputPixels: 16e6, animated: false }).resize(64, 64, { fit: "cover" }).webp({ quality: 40, effort: 1 }).toBuffer()).toString('base64'); }
     catch (_) { thumb = null; } // not a picture we can read: keep the link, stop trying for a thumbnail
   }
   done.set(mint, { image: meta.image, description: meta.description, thumb });

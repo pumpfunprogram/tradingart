@@ -14,7 +14,7 @@ export type Tok = {
   mint: string; name: string | null; symbol: string | null; uri: string | null; image: string | null; description: string | null;
   createdAt: number; kind: 'new' | 'migrated'; migratedAt: number | null;
   mcapSol: number | null; progress: number | null; volSol: number; buys: number; sells: number; lastAt: number; dex: TokenView | null;
-  own?: { c5: number; c1h: number } | null; thumb?: boolean; fromServer?: boolean;
+  own?: { c5: number; c1h: number } | null; thumb?: boolean; fromServer?: boolean; live?: boolean;
 };
 export type Hot = { mint: string; name: string | null; symbol: string | null; thumb: boolean; image: string | null; mcapSol: number | null; c5: number; trades: number };
 export type FeedStatus = 'connecting' | 'live' | 'fallback';
@@ -55,10 +55,8 @@ export function recordTrade(m: any) {
   let l = localTrades.get(m.mint); if (!l) { if (localTrades.size > 120) localTrades.delete(localTrades.keys().next().value as string); l = []; localTrades.set(m.mint, l); }
   l.push({ id: ++tradeSeq, t: Date.now(), side: tx === 'sell' ? 'sell' : 'buy', sol: Number(m.solAmount) || 0, mcapSol: p, who: typeof m.traderPublicKey === 'string' ? m.traderPublicKey : undefined, sig: typeof m.signature === 'string' ? m.signature.slice(0, 10) : undefined }); if (l.length > 80) l.shift();
 }
-const CACHE_KEY = 'art:tokens:v2';
-const CACHE_MAX_AGE = 24 * 3600 * 1000;
-const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL || 'wss://pumpportal.fun/api/data';
 const FINAL_STRETCH = 0.5;
+const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL || 'wss://pumpportal.fun/api/data';
 const MAX_TRACKED = 160;
 
 /** Bonding-curve progress from the virtual SOL reserve (starts ~30, graduates ~115). Approximate by nature. */
@@ -80,20 +78,12 @@ export function useLiveTokens() {
   const [topProgress, setTopProgress] = useState<number | null>(null);
   const [surgeSrv, setSurgeSrv] = useState<Hot[]>([]);
   const [boardErr, setBoardErr] = useState<string | null>(null);
+  const [boardReady, setBoardReady] = useState(false);
   const failures = useRef(0);
   const metaQ = useRef<string[]>([]); const metaBusy = useRef(0); const metaTries = useRef(new Map<string, number>());
 
   const touch = () => { dirty.current = true; };
 
-  /* what was on screen last time comes back right after mount (not during server render, so hydration stays clean) */
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]') as Tok[];
-      const cutoff = Date.now() - CACHE_MAX_AGE;
-      for (const t of Array.isArray(saved) ? saved : []) if (t && typeof t.mint === 'string' && (t.lastAt || 0) > cutoff && !store.current.has(t.mint)) store.current.set(t.mint, { ...blank(t.mint), ...t });
-      if (store.current.size) { dirty.current = true; setTick((n) => n + 1); for (const t of store.current.values()) if (t.uri && !t.image) metaQ.current.push(t.mint); pumpMeta(); }
-    } catch { /* no saved list yet, or storage is blocked */ }
-  }, []);
   const upsert = (mint: string, fn: (t: Tok) => void) => { let t = store.current.get(mint); if (!t) { t = blank(mint); store.current.set(mint, t); } fn(t); t.lastAt = Date.now(); touch(); return t; };
 
   const pumpMeta = useCallback(() => {
@@ -136,6 +126,7 @@ export function useLiveTokens() {
     recordTrade(m);
     if (m.txType === 'create') {
       upsert(m.mint, (t) => {
+        t.live = true;
         t.name = m.name || t.name; t.symbol = m.symbol || t.symbol; t.uri = typeof m.uri === 'string' && m.uri.length < 400 ? m.uri : t.uri; t.createdAt = Date.now();
         if (typeof m.marketCapSol === 'number') t.mcapSol = m.marketCapSol;
         if (typeof m.vSolInBondingCurve === 'number') t.progress = curveProgress(m.vSolInBondingCurve);
@@ -144,10 +135,11 @@ export function useLiveTokens() {
       if (m.uri) { metaQ.current.push(m.mint); pumpMeta(); }
       subscribeTrades([m.mint]); evict();
     } else if (m.txType === 'migrate') {
-      upsert(m.mint, (t) => { t.kind = 'migrated'; t.migratedAt = Date.now(); t.progress = 1; });
+      upsert(m.mint, (t) => { t.live = true; t.kind = 'migrated'; t.migratedAt = Date.now(); t.progress = 1; });
     } else if (m.txType === 'buy' || m.txType === 'sell') {
       const t = store.current.get(m.mint); if (!t) return;
       upsert(m.mint, (x) => {
+        x.live = true;
         if (typeof m.marketCapSol === 'number') x.mcapSol = m.marketCapSol;
         if (typeof m.vSolInBondingCurve === 'number' && x.kind === 'new') x.progress = curveProgress(m.vSolInBondingCurve);
         if (typeof m.solAmount === 'number') x.volSol += m.solAmount;
@@ -222,6 +214,7 @@ export function useLiveTokens() {
           }
         };
         apply(j.new); apply(j.stretch); apply(j.migrated); apply(j.trending); apply(j.surge);
+        setBoardReady(true);
         setHot((j.trending || []).map((x: any) => ({ mint: x.mint, name: x.name, symbol: x.symbol, thumb: !!x.thumb, image: x.image, mcapSol: x.mcapSol, c5: x.stats?.c5 || 0, trades: (x.stats?.buys1h || 0) + (x.stats?.sells1h || 0) })));
         setSurgeSrv((j.surge || []).map((x: any) => ({ mint: x.mint, name: x.name, symbol: x.symbol, thumb: !!x.thumb, image: x.image, mcapSol: x.mcapSol, c5: x.stats?.c5 || 0, trades: (x.stats?.buys1h || 0) + (x.stats?.sells1h || 0) })));
         setTopProgress(typeof j.topProgress === 'number' ? j.topProgress : null);
@@ -232,35 +225,37 @@ export function useLiveTokens() {
     return () => { stop = true; clearInterval(id); };
   }, [pumpMeta]);
 
-  /* save the lists (newest first, trimmed) every few seconds and when the tab is hidden */
-  useEffect(() => {
-    const save = () => {
-      try {
-        const all = [...store.current.values()];
-        const keep = [
-          ...all.filter((t) => t.kind === 'new').sort((a, b) => b.createdAt - a.createdAt).slice(0, 80),
-          ...all.filter((t) => t.kind === 'migrated').sort((a, b) => (b.migratedAt || 0) - (a.migratedAt || 0)).slice(0, 40),
-        ];
-        localStorage.setItem(CACHE_KEY, JSON.stringify(keep));
-      } catch { /* storage full or blocked: the live feed still works */ }
-    };
-    const id = setInterval(save, 4000);
-    const hide = () => { if (document.visibilityState === 'hidden') save(); };
-    document.addEventListener('visibilitychange', hide); window.addEventListener('pagehide', save);
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', save); };
-  }, []);
-
   /* repaint at most every 700 ms, however fast the socket is */
   useEffect(() => { const id = setInterval(() => { if (dirty.current) { dirty.current = false; setTick((n) => n + 1); } }, 700); return () => clearInterval(id); }, []);
 
   const lists = useMemo(() => {
     void tick;
     const all = [...store.current.values()];
-    const live = all.filter((t) => t.kind === 'new');
-    const stretch = live.filter((t) => (t.progress ?? 0) >= FINAL_STRETCH).sort((a, b) => (b.progress ?? 0) - (a.progress ?? 0)).slice(0, LIST_SIZE);
+    const pad = (primary: Tok[], extra: Tok[], n: number) => {
+      const out = primary.slice(0, n);
+      if (out.length >= n) return out;
+      const seen = new Set(out.map((t) => t.mint));
+      for (const t of extra) { if (out.length >= n) break; if (!seen.has(t.mint)) { out.push(t); seen.add(t.mint); } }
+      return out;
+    };
+    const liveNew = all.filter((t) => t.kind === 'new' && t.live);
+    const srvNew = all.filter((t) => t.kind === 'new' && !t.live);
+    const stretch = pad(
+      liveNew.filter((t) => (t.progress ?? 0) >= FINAL_STRETCH).sort((a, b) => (b.progress ?? 0) - (a.progress ?? 0)),
+      srvNew.filter((t) => (t.progress ?? 0) >= FINAL_STRETCH).sort((a, b) => (b.progress ?? 0) - (a.progress ?? 0)),
+      LIST_SIZE,
+    );
     const inStretch = new Set(stretch.map((t) => t.mint));
-    const fresh = live.filter((t) => !inStretch.has(t.mint) && (t.progress ?? 0) < FINAL_STRETCH).sort((a, b) => b.createdAt - a.createdAt).slice(0, LIST_SIZE);
-    const migrated = all.filter((t) => t.kind === 'migrated').sort((a, b) => (b.migratedAt || 0) - (a.migratedAt || 0)).slice(0, LIST_SIZE);
+    const fresh = pad(
+      liveNew.filter((t) => !inStretch.has(t.mint) && (t.progress ?? 0) < FINAL_STRETCH).sort((a, b) => b.createdAt - a.createdAt),
+      srvNew.filter((t) => !inStretch.has(t.mint) && (t.progress ?? 0) < FINAL_STRETCH).sort((a, b) => b.createdAt - a.createdAt),
+      LIST_SIZE,
+    );
+    const migrated = pad(
+      all.filter((t) => t.kind === 'migrated' && t.live).sort((a, b) => (b.migratedAt || 0) - (a.migratedAt || 0)),
+      all.filter((t) => t.kind === 'migrated' && !t.live).sort((a, b) => (b.migratedAt || 0) - (a.migratedAt || 0)),
+      LIST_SIZE,
+    );
     return { new: fresh, stretch, migrated };
   }, [tick]);
 
@@ -281,9 +276,8 @@ export function useLiveTokens() {
     return () => { stop = true; clearTimeout(first); clearInterval(id); };
   }, []);
 
-  /* Trending and Surge also work from what this browser sees live, so the strips are never empty while the market is moving */
-  const trendingLocal = useMemo(() => { void tick; return [...store.current.values()].map((t) => ({ t, n: t.buys + t.sells })).filter((x) => x.n >= 3).sort((a, b) => b.n - a.n).slice(0, 12).map(({ t, n }): Hot => ({ mint: t.mint, name: t.name, symbol: t.symbol, thumb: !!t.thumb, image: t.image, mcapSol: t.mcapSol, c5: localChange(t.mint, 300), trades: n })); }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const surgeLocal = useMemo(() => { void tick; return [...store.current.values()].filter((t) => t.buys + t.sells >= 4).map((t): Hot => ({ mint: t.mint, name: t.name, symbol: t.symbol, thumb: !!t.thumb, image: t.image, mcapSol: t.mcapSol, c5: localChange(t.mint, 300), trades: t.buys + t.sells })).filter((h) => h.c5 > 5).sort((a, b) => b.c5 - a.c5).slice(0, 12); }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const trendingLocal = useMemo(() => { void tick; return [...store.current.values()].filter((t) => t.live).map((t) => ({ t, n: t.buys + t.sells })).filter((x) => x.n >= 3).sort((a, b) => b.n - a.n).slice(0, 12).map(({ t, n }): Hot => ({ mint: t.mint, name: t.name, symbol: t.symbol, thumb: !!t.thumb, image: t.image, mcapSol: t.mcapSol, c5: localChange(t.mint, 300), trades: n })); }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const surgeLocal = useMemo(() => { void tick; return [...store.current.values()].filter((t) => t.live && t.buys + t.sells >= 4).map((t): Hot => ({ mint: t.mint, name: t.name, symbol: t.symbol, thumb: !!t.thumb, image: t.image, mcapSol: t.mcapSol, c5: localChange(t.mint, 300), trades: t.buys + t.sells })).filter((h) => h.c5 > 5).sort((a, b) => b.c5 - a.c5).slice(0, 12); }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const find = useCallback((mint: string) => store.current.get(mint) || null, []);
-  return { status, lists, solUsd, find, tick, hot: hot.length ? hot : trendingLocal, surge: surgeSrv.length ? surgeSrv : surgeLocal, topProgress, boardErr };
+  return { status, lists, solUsd, find, tick, hot: trendingLocal.length ? trendingLocal : hot, surge: surgeLocal.length ? surgeLocal : surgeSrv, topProgress, boardErr, boardReady };
 }
